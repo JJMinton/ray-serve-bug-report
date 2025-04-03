@@ -1,0 +1,178 @@
+apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: minimal-ray-example
+  namespace: defaults
+  labels:
+    app: minimal-ray-example
+    cluster: minimal-ray-example
+spec:
+  rayClusterConfig:
+    rayVersion: 2.44.1
+    enableInTreeAutoscaling: true
+    autoscalerOptions:
+      upscalingMode: Default
+      idleTimeoutSeconds: 1200
+      imagePullPolicy: IfNotPresent
+      securityContext: {}
+      env: []
+      envFrom: []
+    headGroupSpec:
+      serviceType: ClusterIP
+      rayStartParams:
+        dashboard-host: 0.0.0.0
+        resources: '"{\"instance_type:c7i.2xlarge\": 1, \"priority:normal\": 1, \"lifecycle:on-demand\":
+          1}"'
+      template:
+        metadata:
+          labels:
+            instance.type: c7i.2xlarge
+            priority: normal
+            lifecycle: on-demand
+          annotations:
+            karpenter.sh/do-not-disrupt: 'true'
+        spec:
+          serviceAccountName: ''
+          containers:
+          - name: ray-head
+            image: ${DOCKER_NAME}@${DOCKER_SHA}
+            ports:
+            - containerPort: 6379
+              name: gcs
+            - containerPort: 8265
+              name: dashboard
+            - containerPort: 10001
+              name: client
+            - containerPort: 44217
+              name: as-metrics
+            - containerPort: 44227
+              name: dash-metrics
+            - containerPort: 8484
+              name: serve
+            - containerPort: 3001
+              name: code-server
+            - containerPort: 6006
+              name: tensorboard
+            lifecycle:
+              preStop:
+                exec:
+                  command:
+                  - /bin/sh
+                  - -c
+                  - ray stop
+            volumeMounts:
+            - mountPath: /tmp/ray
+              name: ray-logs
+            resources:
+              limits: &id001
+                cpu: 4
+                memory: 8Gi
+              requests: *id001
+          nodeSelector:
+            node.kubernetes.io/instance-type: c7i.2xlarge
+            karpenter.sh/capacity-type: on-demand
+            topology.kubernetes.io/zone: us-east-1a
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: karpenter.sh/nodepool
+                    operator: In
+                    values:
+                    - cpu
+                    - gpu-g5
+                    - gpu-p5
+                    - gpu-p
+                    - kuberay-nodepool-cpu
+                    - kuberay-nodepool-gpu-g5
+                    - kuberay-nodepool-gpu-p5
+          volumes:
+          - name: ray-logs
+            emptyDir: {}
+          priorityClassName: ray-job-normal
+    workerGroupSpecs:
+    - replicas: 0
+      minReplicas: 0
+      maxReplicas: 20
+      groupName: minimal-ray-example-worker-c7i-2xlarge
+      rayStartParams:
+        resources: '"{\"instance_type:c7i.2xlarge\": 1, \"priority:normal\": 1, \"lifecycle:on-demand\":
+          1}"'
+      template:
+        metadata:
+          labels:
+            instance.type: c7i.2xlarge
+            priority: normal
+            lifecycle: on-demand
+          annotations:
+            karpenter.sh/do-not-disrupt: 'true'
+        spec:
+          serviceAccountName: ''
+          containers:
+          - name: ray-worker
+            image: ${DOCKER_NAME}@{IMAGE_SHA}
+            lifecycle:
+              preStop:
+                exec:
+                  command:
+                  - /bin/sh
+                  - -c
+                  - ray stop
+            volumeMounts:
+            - mountPath: /tmp/ray
+              name: ray-logs
+            resources:
+              limits: &id002
+                cpu: 4
+                memory: 8Gi
+              requests: *id002
+            env: []
+          nodeSelector:
+            node.kubernetes.io/instance-type: c7i.2xlarge
+            karpenter.sh/capacity-type: on-demand
+            topology.kubernetes.io/zone: us-east-1a
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: karpenter.sh/nodepool
+                    operator: In
+                    values:
+                    - cpu
+                    - gpu-g5
+                    - gpu-p5
+                    - gpu-p
+                    - kuberay-nodepool-cpu
+                    - kuberay-nodepool-gpu-g5
+                    - kuberay-nodepool-gpu-p5
+          volumes:
+          - name: ray-logs
+            emptyDir: {}
+          priorityClassName: ray-job-normal
+  serveConfigV2: |
+    proxy_location: EveryNode
+    http_options:
+      host: 0.0.0.0
+      port: 8484
+      root_path: /minimal-ray-example
+    grpc_options:
+      port: 9000
+      grpc_servicer_functions: []
+    logging_config:
+      encoding: TEXT
+      log_level: INFO
+      logs_dir: null
+      enable_access_log: true
+    applications:
+    - name: MinimalExample
+      route_prefix: /
+      import_path: package.app:ray_app
+      runtime_env:
+        conda: minimal-example
+      deployments:
+      - name: FastAPIDeployment
+        ray_actor_options:
+          num_cpus: 1
+        num_replicas: 1

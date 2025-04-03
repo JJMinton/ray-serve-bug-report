@@ -1,0 +1,11 @@
+name: minimal-example
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - numpy
+  - pip:
+    - pip-hello-world
+    - ray[serve] == 2.44.1
+    - -e ../package

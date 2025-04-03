@@ -1,0 +1,4 @@
+# Ignore Python build/cache files
+build/
+*.egg-info/
+__pycache__/
