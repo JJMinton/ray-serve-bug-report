@@ -1,3 +1,7 @@
+This repo is a minimal implementation to reproduce the bug reported [here](https://github.com/ray-project/ray/issues/51971).
+
+
+To reproduce the bug:
 ```bash
 export DOCKER_NAME = minimal-example
 
